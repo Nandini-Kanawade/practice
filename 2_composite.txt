@@ -1,0 +1,98 @@
+# %%
+%pip install rasterio
+
+# %%
+import os
+import numpy as np
+from glob import glob
+import rasterio as rio
+from rasterio.plot import show
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from matplotlib.colors import ListedColormap
+
+# %%
+%pip install earthpy
+
+# %%
+import earthpy as et
+import earthpy.spatial as es
+import earthpy.plot as ep
+
+# %%
+from google.colab import drive
+drive.mount('/content/drive')
+
+# %%
+recourcesat_bands=glob("/content/drive/MyDrive/RS_Lab/2/*B*.tif")
+recourcesat_bands.sort()
+recourcesat_bands
+
+# %%
+src1=rio.open("/content/drive/MyDrive/RS_Lab/2/L3-NE43C11-096-059-05Apr19-BAND2.tif")
+src2=rio.open("/content/drive/MyDrive/RS_Lab/2/L3-NE43C11-096-059-05Apr19-BAND3.tif")
+src3=rio.open("/content/drive/MyDrive/RS_Lab/2/L3-NE43C11-096-059-05Apr19-BAND4.tif")
+src4=rio.open("/content/drive/MyDrive/RS_Lab/2/L3-NE43C11-096-059-05Apr19-BAND5.tif")
+
+# %%
+#To check the type of file
+type(src1)
+
+# %%
+show(src1)
+show(src2)
+show(src3)
+show(src4)
+
+# %%
+stacked_resourcesat=[]
+for img in recourcesat_bands:
+    with rio.open(img, 'r') as f:
+        stacked_resourcesat.append(f.read(1))
+
+# %%
+print("Length of stacked_resourcesat list:",len(stacked_resourcesat))
+print("Shape of single file stacked_resourcesat list:",(stacked_resourcesat[0]).shape)
+
+
+# %%
+stacked_resourcesat_img=np.stack(stacked_resourcesat)
+print("Shape of stacked_resourcesat_img:",stacked_resourcesat_img.shape)
+
+
+# %%
+stacked_resourcesat_img_divided=stacked_resourcesat_img/10000
+print("Shape of stacked_resourcesat_img:",stacked_resourcesat_img.shape)
+
+# %%
+print(stacked_resourcesat_img_divided.min(),stacked_resourcesat_img_divided.max())
+
+# %%
+normalized_img=(stacked_resourcesat_img-stacked_resourcesat_img.min())/(stacked_resourcesat_img.max())
+
+# %%
+normalized_img.min(), normalized_img.max()
+
+# %%
+titles=[f'band={i}' for i in range(2,6)]
+print(titles)
+
+# %%
+ep.plot_bands(
+    arr=stacked_resourcesat_img, cmap='gist_earth', figsize=(12,12), cols=4, cbar=False, title= titles
+)
+plt.show()
+
+# %%
+ep.plot_bands(
+    arr=normalized_img, cmap='gist_earth', figsize=(12,12), cols=4, cbar=False, title= titles
+)
+
+# %%
+colors=['tomato', 'navy', 'MediumSpringGreen', 'lightblue']
+ep.hist(
+    arr=stacked_resourcesat_img, colors=colors, title=titles, cols=4, alpha=0.4, figsize=(15,7)
+)
+plt.show()
+
+
