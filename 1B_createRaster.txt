@@ -1,0 +1,41 @@
+from osgeo import gdal
+import numpy as np
+
+# Output path
+output_path ="D:/Final_Year/4_RemoteSensing/Practical_Exam/1B/striped_gradient_2.tif"
+
+# Raster dimensions
+x_size, y_size = 100, 100
+band_count = 1
+data_type = gdal.GDT_Byte  # 0–255 grayscale
+
+# Create the raster dataset
+driver = gdal.GetDriverByName('GTiff')
+ds = driver.Create(output_path, x_size, y_size, band_count, data_type)
+
+# Set geotransform [origin_x, pixel_width, rotation_x, origin_y, rotation_y, pixel_height]
+ds.SetGeoTransform([0,1,0,0,0,-1])
+
+# Create striped data: each 10-pixel row band has a solid value
+stripe_height = 10
+num_stripes = y_size // stripe_height
+values = np.linspace(255, 0, num_stripes, dtype=np.uint8)
+
+# Create gradient stripes
+data = np.zeros((y_size, x_size), dtype=np.uint8)
+for i, val in enumerate(values):
+    start_row = i * stripe_height
+    end_row = start_row + stripe_height
+    data[start_row:end_row, :] = val
+
+# Write data to raster band
+band = ds.GetRasterBand(1)
+band.WriteArray(data)
+band.SetNoDataValue(0)
+
+band.FlushCache()
+ds = None
+
+# Add raster to QGIS
+iface.addRasterLayer(output_path, "Striped Gradient")
+print("Striped gradient raster created and loaded into QGIS.")
