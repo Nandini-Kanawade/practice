@@ -20,6 +20,7 @@ ds.SetGeoTransform([0,1,0,0,0,-1])
 stripe_height = 10
 num_stripes = y_size // stripe_height
 values = np.linspace(255, 0, num_stripes, dtype=np.uint8)
+# values = np.random.randint(0, 256, size=num_stripes, dtype=np.uint8)
 
 # Create gradient stripes
 data = np.zeros((y_size, x_size), dtype=np.uint8)
