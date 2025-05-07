@@ -1,0 +1,170 @@
+# %%
+%pip install rasterio
+
+# %%
+import cv2
+import numpy as np
+import rasterio
+import matplotlib.pyplot as plt
+from skimage.restoration import denoise_nl_means
+
+# %%
+from google.colab import drive
+drive.mount('/content/drive')
+
+# %%
+with rasterio.open("/content/drive/MyDrive/RS_Lab/4/LC09_L2SP_146050_20250303_20250304_02_T1_SR_B2.TIF") as src:
+    gray_image = src.read(1)
+
+plt.imshow(gray_image, cmap='Blues_r')
+plt.colorbar()
+plt.show()
+
+# %%
+with rasterio.open("/content/drive/MyDrive/RS_Lab/4/LC09_L2SP_146050_20250303_20250304_02_T1_SR_B2.TIF") as src:
+    resolution = src.res
+    print(f"Resolution: {resolution[0]} x {resolution[1]} meters")
+
+
+# %%
+with rasterio.open("/content/drive/MyDrive/RS_Lab/4/LC09_L2SP_146050_20250303_20250304_02_T1_SR_B2.TIF") as src:
+    print(f"Data Type: {src.dtypes[0]}")
+
+# %% [markdown]
+# #### Gaussian noise method1
+
+# %%
+noise = np.zeros_like(gray_image, dtype=np.int16)
+cv2.randn(noise, 0, 32768)
+noisy_image = cv2.add(gray_image.astype(np.int16), noise)
+
+#(15, 15) kernel
+# sigmaX > 0	Manually specify how strong the blur is in X
+# sigmaX = 0	Let OpenCV compute sigma based on kernel size
+gaussian_deblurred = cv2.GaussianBlur(noisy_image, (15,15), 0)
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 8))
+axes[0].imshow(gray_image, cmap='Blues_r'); axes[0].set_title("Original")
+axes[1].imshow(noisy_image, cmap='Blues_r'); axes[1].set_title("Gaussian Noise")
+axes[2].imshow(gaussian_deblurred, cmap='Blues_r'); axes[2].set_title("Gaussian Deblurred")
+
+# %%
+row_start, row_end = 2100, 2300
+col_start, col_end = 2200, 2400
+gray_zoomed = gray_image[row_start:row_end, col_start:col_end]
+noisy_zoomed = noisy_image[row_start:row_end, col_start:col_end]
+deblurred_zoomed = gaussian_deblurred[row_start:row_end, col_start:col_end]
+
+# Display the zoomed-in images
+fig, axes = plt.subplots(1, 3, figsize=(15, 8))
+axes[0].imshow(gray_zoomed, cmap='Blues_r')
+axes[0].set_title("Original (Zoomed)")
+axes[1].imshow(noisy_zoomed, cmap='Blues_r')
+axes[1].set_title("Gaussian Noise (Zoomed)")
+axes[2].imshow(deblurred_zoomed, cmap='Blues_r')
+axes[2].set_title("Denoised (Zoomed)")
+plt.show()
+
+
+# %% [markdown]
+# #### Gaussian noise method2
+
+# %%
+noisy_image_float = noisy_image.astype(np.float32) / 65535.0
+denoised_image_float = denoise_nl_means(noisy_image_float, patch_size=5, patch_distance=11, h=0.8)
+denoised_image_uint16 = (denoised_image_float * 65535).astype(np.uint16)
+
+'''
+patch_size=5
+Size of the square patch (e.g., 5×5).Used to capture local structure (like edges or texture)
+Larger patches:Capture more context.More accurate similarity, but slower.
+Smaller patches:Faster, but less detail context.
+2. patch_distance=11
+Radius around each pixel where similar patches are searched.Total search window size = (2 × patch_distance + 1) × (2 × patch_distance + 1) e.g., 11 → 23×23 window.
+Larger distances:Better noise averaging (more candidate patches).Slower and more memory use.
+3. h=0.8 (Filtering strength)
+Controls how much smoothing happens.Technically, h is the decay parameter for similarity weighting.Affects how the algorithm weights distant patches:
+Low h (~0.4–0.6) → keeps details but weak denoising.High h (>1.0) → strong denoising but may blur edges/textures.
+Choose h based on estimated noise standard deviation.
+'''
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 8))
+axes[0].imshow(gray_image, cmap='Blues_r'); axes[0].set_title("Original")
+axes[1].imshow(noisy_image, cmap='Blues_r'); axes[1].set_title("Gaussian Noise")
+axes[2].imshow(denoised_image_uint16, cmap='Blues_r'); axes[2].set_title("denoised_image")
+
+# %%
+row_start, row_end = 2100, 2300
+col_start, col_end = 2200, 2400
+
+gray_zoomed = gray_image[row_start:row_end, col_start:col_end]
+in_img_zoomed = noisy_image[row_start:row_end, col_start:col_end]
+blurred_zoomed = denoised_image_uint16[row_start:row_end, col_start:col_end]
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 8))
+axes[0].imshow(gray_zoomed, cmap='Blues_r')
+axes[0].set_title("Original (Zoomed)")
+axes[1].imshow(in_img_zoomed, cmap='Blues_r')
+axes[1].set_title("Gaussian Noise (Zoomed)")
+axes[2].imshow(blurred_zoomed, cmap='Blues_r')
+axes[2].set_title("Denoised (Zoomed)")
+plt.show()
+
+
+# %%
+def psnr(original, denoised):
+    mse = np.mean((original - denoised) ** 2)
+    if mse == 0:
+        return float('inf')
+    return 20 * np.log10(65535.0 / np.sqrt(mse))
+
+# %%
+#Higher PSNR = better quality (i.e., less difference from the original).
+print("Method 1: " , psnr(gray_image,gaussian_deblurred))
+print("Method 2:" ,psnr(gray_image,denoised_image_uint16))
+
+# %% [markdown]
+# #### Salt and Pepper Noise
+
+# %%
+imp_noise = np.zeros(gray_image.shape, np.uint16)
+cv2.randu(imp_noise, 0, 65535)
+
+# mask
+salt_mask = imp_noise > 60000
+pepper_mask = imp_noise < 5000
+
+imp_noise[:] = 0
+imp_noise[salt_mask] = 65535  # White
+imp_noise[pepper_mask] = 0  # Black
+
+in_img = gray_image.copy()
+in_img[salt_mask] = 65535
+in_img[pepper_mask] = 0
+
+# %%
+median_deblurred=cv2.medianBlur(in_img, 3)
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 8))
+axes[0].imshow(gray_image, cmap='Blues_r'); axes[0].set_title("Original")
+axes[1].imshow(in_img, cmap='Blues_r'); axes[1].set_title("Salt&Pepper Noise")
+axes[2].imshow(median_deblurred, cmap='Blues_r'); axes[2].set_title("median_deblurred_image")
+
+# %%
+row_start, row_end = 2100, 2300
+col_start, col_end = 2200, 2400
+
+gray_zoomed = gray_image[row_start:row_end, col_start:col_end]
+in_img_zoomed = in_img[row_start:row_end, col_start:col_end]
+blurred_zoomed = median_deblurred[row_start:row_end, col_start:col_end]
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 8))
+axes[0].imshow(gray_zoomed, cmap='Blues_r')
+axes[0].set_title("Original (Zoomed)")
+axes[1].imshow(in_img_zoomed, cmap='Blues_r')
+axes[1].set_title("Gaussian Noise (Zoomed)")
+axes[2].imshow(blurred_zoomed, cmap='Blues_r')
+axes[2].set_title("Denoised (Zoomed)")
+plt.show()
+
+
